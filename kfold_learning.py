@@ -19,11 +19,6 @@ def kfold_feature_learning(train, test, y, t_y, clf = linear_model.LassoCV(cv=10
                            out_dir = None,  output='light', save_int = True, vote = False, weighted = False,
                            hide_test = False):
     '''
-    TO DO:
-    -- Make output easier to understand using dictionaries
-    -- Create option to not reveal test accuracy
-    -- Document code
-
     This is a function that will use nested cross validation to generate an average model
     that will hopefully generalize better to unseen test data. 
     
@@ -190,7 +185,7 @@ def kfold_feature_learning(train, test, y, t_y, clf = linear_model.LassoCV(cv=10
     # strip columns names
     tr_cols = train.columns 
     train.columns = range(len(train.columns))
-    test.colums = range(len(test.columns))
+    test.columns = range(len(test.columns))
     if type(keep_cols) == list:
         tmpo = []
         for col in keep_cols:
@@ -436,12 +431,12 @@ def kfold_feature_learning(train, test, y, t_y, clf = linear_model.LassoCV(cv=10
             labs = ['final_model_weights', 'validation_predicted', 'test_predicted',
                     'model_intercepts', 'all_model_weights', 'all_models']
             to_return = dict(zip(labs,
-                                final_weights, predicted, t_predicted, all_ints, all_weights, all_mods))
+                                [final_weights, predicted, t_predicted, all_ints, all_weights, all_mods]))
         else:
             labs = ['validation_summary', 'test_summary', 'validation_predicted', 'test_predicted',
                     'model_intercepts', 'all_model_weights', 'all_models']
             to_return = dict(zip(labs,
-                                val_sum, t_sum, predicted, t_predicted, all_ints, all_weights, all_mods))
+                                [val_sum, t_sum, predicted, t_predicted, all_ints, all_weights, all_mods]))
     return to_return
 
 def manual_classification(obs, pred, verbose, mode='validation', weights=None):
@@ -478,8 +473,8 @@ def manual_classification(obs, pred, verbose, mode='validation', weights=None):
         else:
             print('something went wrong for ',i)
 
-    sens = len(tp)/(len(tp)+len(fn))
-    spec = len(tn)/(len(tn)+len(fp))
+    sens = len(tp)/((len(tp)+len(fn)) + 1e-06)
+    spec = len(tn)/((len(tn)+len(fp)) + 1e-06)
     acc = (len(tp)+len(tn))/(len(tp)+len(fn)+len(tn)+len(fp))
 
     if verbose:
