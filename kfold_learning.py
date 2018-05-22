@@ -34,9 +34,9 @@ def kfold_feature_learning(train, test, y, t_y, clf = linear_model.LassoCV(cv=10
     the weights across folds for a final model. The final model will then be applied to your 
     testing data. The validation and testing accuracy will be displayed. 
     
-    Several other options exists (see below), and are forthcoming.
+    Several other options exists (see below), and may be forthcoming.
     
-    ATTENTION: THIS SCRIPT IS STILL IN DEVELOPMENT. IT IS UGLY AND UNFINISHED, SO DONT JUDGE!
+    ATTENTION: THIS FUNCTION IS STILL IN DEVELOPMENT. IT IS UGLY AND UNFINISHED, SO DONT JUDGE!
     SOME FEATURES ARE IN BETA, AND IT WILL NOT ACCEPT SOME MODELS FOR CLF!
     
     
@@ -560,6 +560,23 @@ def vote_prediction(X_test, all_mods, problem, vote_type, weighted = False):
         final_pred = preds.mean(axis=1)
 
     return final_pred
+
+def balance_cohorts(df,col,ratio=2, save_df=False):
+    train_ids,test_ids = [],[]
+    subs = df.sort_values(col).index
+    x = 0
+    for i,sub in enumerate(subs):
+        if i - x < ratio:
+            train_ids.append(sub)
+        else:
+            test_ids.append(sub)
+            x = i+1
+    if save_df:
+        tr_df = df.loc[train_ids]
+        e_df = df.loc[test_ids]
+        return tr_df, te_df
+    else:
+        return train_ids,test_ids
 
 def feature_learning_optimizer(train, test, y, t_y, problem = 'regression', 
                                clfs = {'model': linear_model.LassoCV(cv=10)}, verbose = False,
