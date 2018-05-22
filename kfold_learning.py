@@ -327,7 +327,7 @@ def kfold_feature_learning(train, test, y, t_y, clf = linear_model.LassoCV(cv=10
         print(n_feats,'features selected')
     
     if n_feats == 0 or fail == True:
-        val_res, val_res2, t_res = np.nan, np.nan, np.nan
+        val_res, t_res = np.nan, np.nan
         predicted, t_predicted = [], np.array([])
         if save_int:
             all_ints = np.mean(ints)
@@ -341,7 +341,7 @@ def kfold_feature_learning(train, test, y, t_y, clf = linear_model.LassoCV(cv=10
             if len(y[train.index]) != len(predicted):
                 print('WARNING: No features selected in at least one fold')
                 print('Try changing clf parameters, reducing p_cutoff, or getting some better data')
-                val_res, val_res2, t_res = np.nan, np.nan, np.nan
+                val_res, t_res = np.nan, np.nan
                 if type(ci) == float:
                     ci_l, ci_u, cim, p, r = np.nan, np.nan, np.nan, np.nan, np.nan
             else:
@@ -368,46 +368,52 @@ def kfold_feature_learning(train, test, y, t_y, clf = linear_model.LassoCV(cv=10
             val_sum, val_res = manual_classification(y[train.index],predicted,verbose,'validation')
 
         # apply model to test data
-        if vote:
-            t_predicted = vote_prediction(test, all_mods, problem, vote, weighted)
+        if hide_test:
+            t_res = np.nan
+            t_predicted, all_ints = [],[]
+            if problem == 'classification':
+                t_sum = np.nan
         else:
-            ntest = check_array(test,accept_sparse='csr')
-            t_predicted = pandas.Series(safe_sparse_dot(ntest,np.array(final_weights).T,dense_output=True),index=test.index)
-            if save_int:
-                all_ints = np.mean(ints)
-                t_predicted += all_ints
+            if vote:
+                t_predicted = vote_prediction(test, all_mods, problem, vote, weighted)
             else:
-                all_ints = []
-
-        # run test
-        if problem == 'regression':
-            r,p = stats.pearsonr(t_y[test.index],t_predicted)
-            t_res = (r**2)*100
-            if type(ci) == float:
-                distr = []
-                for c in range(1000):
-                    rsamp = np.random.choice(test.index, len(test.index))
-                    distr.append(stats.pearsonr(t_y[rsamp], t_predicted[rsamp])[0]**2)
-                nci = int(ci*1000)
-                ci_u = sorted(distr)[1000 - nci]
-                cim = np.mean(distr)
-                ci_l = sorted(distr)[(nci)]
-
-            if verbose:
-                if type(ci) == float:
-                    print('testing prediction accuracy is %s percent (%s, %s, mean=%s) \n p = %s \n r = %s'%(t_res,ci_l, 
-                                                                                                            ci_u, cim, p,r))
+                ntest = check_array(test,accept_sparse='csr')
+                t_predicted = pandas.Series(safe_sparse_dot(ntest,np.array(final_weights).T,dense_output=True),index=test.index)
+                if save_int:
+                    all_ints = np.mean(ints)
+                    t_predicted += all_ints
                 else:
-                    print('testing prediction accuracy is %s percent \n p = %s \n r = %s'%(t_res,p,r))
-        else: # classification
-            if not vote:
-                t_decision_func = t_predicted
-                t_predicted = pandas.Series(index = test.index)
-                t_predicted[t_decision_func[t_decision_func<0].index] = 0
-                t_predicted[t_decision_func[t_decision_func>0].index] = 1
-            else:
-                t_decision_func = None
-            t_sum, t_res = manual_classification(t_y[test.index],t_predicted,verbose,'testing',t_decision_func)
+                    all_ints = []
+
+            # run test
+            if problem == 'regression':
+                r,p = stats.pearsonr(t_y[test.index],t_predicted)
+                t_res = (r**2)*100
+                if type(ci) == float:
+                    distr = []
+                    for c in range(1000):
+                        rsamp = np.random.choice(test.index, len(test.index))
+                        distr.append(stats.pearsonr(t_y[rsamp], t_predicted[rsamp])[0]**2)
+                    nci = int(ci*1000)
+                    ci_u = sorted(distr)[1000 - nci]
+                    cim = np.mean(distr)
+                    ci_l = sorted(distr)[(nci)]
+
+                if verbose:
+                    if type(ci) == float:
+                        print('testing prediction accuracy is %s percent (%s, %s, mean=%s) \n p = %s \n r = %s'%(t_res,ci_l, 
+                                                                                                                ci_u, cim, p,r))
+                    else:
+                        print('testing prediction accuracy is %s percent \n p = %s \n r = %s'%(t_res,p,r))
+            else: # classification
+                if not vote:
+                    t_decision_func = t_predicted
+                    t_predicted = pandas.Series(index = test.index)
+                    t_predicted[t_decision_func[t_decision_func<0].index] = 0
+                    t_predicted[t_decision_func[t_decision_func>0].index] = 1
+                else:
+                    t_decision_func = None
+                t_sum, t_res = manual_classification(t_y[test.index],t_predicted,verbose,'testing',t_decision_func)
 
     # prepare outputs
     
@@ -415,16 +421,28 @@ def kfold_feature_learning(train, test, y, t_y, clf = linear_model.LassoCV(cv=10
     all_weights.columns = tr_cols
     
     if output == 'scores':
-        return val_res, t_res
+        to_return = dict(zip(['validation_accuracy','test_accuracy'],
+                            [val_res,t_res]))
     elif output == 'ci':
-        return cim, ci_u, ci_l, distr
+        labs = ['%dCI_%s'%(ci,x) for x in ['mean','upper','lower']] + ['distribution']
+        to_return = dict(zip(labs, [cim, ci_u, ci_l, distr]))
     elif output == 'light':
-        return (val_res, val_res2, t_res), final_weights, predicted, t_predicted, all_ints
+        labs = ['validation_accuracy', 'test_accuracy', 'final_model_weights',
+                'validation_predicted', 'test_predicted', 'model_intercepts']
+        to_return = dict(zip(labs,
+                            [val_res,  t_res, final_weights, predicted, t_predicted, all_ints]))
     else:
         if problem == 'regression':
-            return final_weights, predicted, t_predicted, all_ints, all_weights, all_mods
+            labs = ['final_model_weights', 'validation_predicted', 'test_predicted',
+                    'model_intercepts', 'all_model_weights', 'all_models']
+            to_return = dict(zip(labs,
+                                final_weights, predicted, t_predicted, all_ints, all_weights, all_mods))
         else:
-            return val_sum, t_sum, predicted, t_predicted, all_ints, all_weights, all_mods
+            labs = ['validation_summary', 'test_summary', 'validation_predicted', 'test_predicted',
+                    'model_intercepts', 'all_model_weights', 'all_models']
+            to_return = dict(zip(labs,
+                                val_sum, t_sum, predicted, t_predicted, all_ints, all_weights, all_mods))
+    return to_return
 
 def manual_classification(obs, pred, verbose, mode='validation', weights=None):
             
